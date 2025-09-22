@@ -2,10 +2,8 @@ name: PR sync between release1.3 and release1.4
 
 on:
   pull_request:
-    types:
-      - closed
-    branches:
-      - 'release1.3'
+    types: [closed]
+    branches: ["release1.3"]
 
 # Explicit permissions for GITHUB_TOKEN
 permissions:
