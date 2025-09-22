@@ -33,7 +33,7 @@ jobs:
       - name: Sync PR changes to release1.4
         id: sync
         run: |
-          set +e  # Continue on errors
+          #set +e  # Continue on errors
           
           PR_NUMBER=${{ github.event.pull_request.number }}
           SOURCE_BRANCH="release1.3"
@@ -68,39 +68,4 @@ jobs:
           git push origin $TARGET_BRANCH
           echo "success=true" >> $GITHUB_OUTPUT
       
-      - name: Handle conflicts
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Merge conflict while merging PR #${{ github.event.pull_request.number }}`,
-              body: `
-                **Automatic PR synchronization failed**
-                
-                PR #${{ github.event.pull_request.number }} was merged into \`release1.3\`, but there were merge conflicts while merging changes into \`release1.4\`.
-                
-                **PR Details:**
-                - Title: "${{ github.event.pull_request.title }}"
-                - Author: @${{ github.event.pull_request.user.login }}
-                - Link: ${{ github.event.pull_request.html_url }}
-              `,
-              labels: ['sync-conflict', 'needs-manual-intervention'],
-              assignees: ['${{ github.event.pull_request.user.login }}']
-            })
       
-      - name: Success notification
-        if: steps.sync.outputs.success == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: ${{ github.event.pull_request.number }},
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `Changes from this PR were successfully cherry-picked into \`release1.4\` branch
-              
-              **Synced commits:**`
-            })
