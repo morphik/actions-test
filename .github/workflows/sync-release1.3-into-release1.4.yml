@@ -29,37 +29,36 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
-      - name: Detect merge strategy and sync changes
+      - name: Sync PR changes to release1.4
         id: sync
         run: |
-          set +e  # Nie przerywaj na błędach
+          set +e  # Continue on errors
           
           PR_NUMBER=${{ github.event.pull_request.number }}
+          SOURCE_BRANCH="release1.3"
           TARGET_BRANCH="release1.4"
           
           # Switch to target branch
           git checkout $TARGET_BRANCH
           git pull origin $TARGET_BRANCH
           
-          # Sprawdź strategię merge'a i znajdź odpowiednie commity
-          git checkout release1.3
-          git pull origin release1.3
+          # Switch to the source branch to find commits
+          git checkout $SOURCE_BRANCH
+          git pull origin $SOURCE_BRANCH
           
-          # Search for commits
+          # Find merge commit (for merge commits)
           MERGE_COMMIT=$(git log --merges --grep="#${PR_NUMBER}" --oneline -n 1 --format="%H")
           
           if [ -n "$MERGE_COMMIT" ]; then
-            echo "Znaleziono merge commit: $MERGE_COMMIT"
-            # Dla merge commit, weź tylko zmiany z PR (nie merge commit)
+            echo "Found merge commit: $MERGE_COMMIT"
             PARENT1=$(git rev-parse ${MERGE_COMMIT}^1)
             PARENT2=$(git rev-parse ${MERGE_COMMIT}^2)
             
             git checkout $TARGET_BRANCH
-            # Cherry-pick wszystkie commity między base a head PR
             git log --reverse --pretty=format:"%H" ${PARENT1}..${PARENT2} | while read commit; do
               echo "Cherry-picking: $commit"
               if ! git cherry-pick $commit; then
-                echo "Konflikt przy commit: $commit"
+                echo "Conflict at commit: $commit"
                 exit 1
               fi
             done
