@@ -1,17 +1,11 @@
 name: PR sync between release1.3 and release1.4
 
 on:
-  pull_request:
+  pull_request_target:
     types:
       - closed
     branches:
-      - 'release1.3'
-
-# Explicit permissions for GITHUB_TOKEN
-permissions:
-  contents: write      # Push to branches
-  pull-requests: write # Comment on PRs  
-  issues: write       # Create issues on conflicts
+      - release1.3
 
 jobs:
   sync-pr-changes:
