@@ -1,0 +1,11 @@
+on: workflow_dispatch
+
+jobs:
+  test:
+    runs-on: ubuntu-latest  # Uses GitHub-hosted runner
+    steps:
+      - name: Test runner
+        run: |
+          echo "✅ Runner working!"
+          echo "OS: $(uname -s)"  
+          echo "Available disk: $(df -h /)"
