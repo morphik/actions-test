@@ -10,4 +10,7 @@ Another try
 
 conflict
 
-rthrthrthgit
+rthrthrthgit\
+
+
+another test
