@@ -1,4 +1,18 @@
 This is simple readme file.
 We will work on this to test branch syncing action.
 
-let make conflict
+
+Let's add this line to release1.4.
+
+Another try
+
+123 twst
+
+conflict
+
+rthrthrthgit\
+
+
+another test
+
+-- next pr checkgi
