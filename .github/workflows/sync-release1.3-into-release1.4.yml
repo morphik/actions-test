@@ -5,7 +5,7 @@ on:
   pull_request_target:
     types: [closed]
     branches:
-      - "release1.3"
+      - "release*"
 
 # Explicit permissions for GITHUB_TOKEN
 permissions:
@@ -15,8 +15,7 @@ permissions:
 
 jobs:
   sync-pr-changes:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
-    #if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == "release1.3"
     runs-on: ubuntu-latest
     
     steps:
