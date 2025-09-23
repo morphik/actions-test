@@ -1,0 +1,21 @@
+name: DEBUG - Trigger Test
+on:
+  workflow_dispatch:
+  push:
+    branches: [release1.3]
+  pull_request:
+    types: [opened, closed, synchronize]
+    branches: [release1.3]
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug trigger
+        run: |
+          echo "🎯 TRIGGER DEBUG"
+          echo "Event: ${{ github.event_name }}"
+          echo "Action: ${{ github.event.action }}"
+          echo "PR merged: ${{ github.event.pull_request.merged }}"
+          echo "Base ref: ${{ github.event.pull_request.base.ref }}"
+          echo "Head ref: ${{ github.event.pull_request.head.ref }}"
