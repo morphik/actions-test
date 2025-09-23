@@ -57,7 +57,7 @@ jobs:
             
             for commit in $COMMITS_TO_PICK; do
               echo "Cherry-picking: $commit"
-              if ! git cherry-pick "$commit"; then
+              if ! git cherry-pick -m 1 "$commit"; then
                 echo "Conflict - aborting"
                 git cherry-pick --abort  
                 exit 1
