@@ -5,7 +5,7 @@ on:
   pull_request_target:
     types: [closed]
     branches:
-      - "release*"
+      - "release1_3"
 
 # Explicit permissions for GITHUB_TOKEN
 permissions:
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   sync-pr-changes:
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == "release1.3"
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == "release1_3"
     runs-on: ubuntu-latest
     
     steps:
@@ -36,7 +36,7 @@ jobs:
           #set +e  # Continue on errors
           
           PR_NUMBER=${{ github.event.pull_request.number }}
-          SOURCE_BRANCH="release1.3"
+          SOURCE_BRANCH="release1_3"
           TARGET_BRANCH="release1.4"
           
           # Switch to target branch
