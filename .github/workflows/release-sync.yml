@@ -46,26 +46,30 @@ jobs:
           git checkout $SOURCE_BRANCH
           git pull origin $SOURCE_BRANCH
           
-          # Find merge commit (for merge commits)
-          MERGE_COMMIT=$(git log --merges --grep="#${PR_NUMBER}" --oneline -n 1 --format="%H")
+          # Find PR number
+          PR_NUMBER="${{ github.event.pull_request.number }}"
           
-          if [ -n "$MERGE_COMMIT" ]; then
-            echo "Found merge commit: $MERGE_COMMIT"
-            PARENT1=$(git rev-parse ${MERGE_COMMIT}^1)
-            PARENT2=$(git rev-parse ${MERGE_COMMIT}^2)
+          # Try to find any commit with the PR number
+          COMMITS_TO_PICK=$(git log --grep="#${PR_NUMBER}" --format="%H" --reverse)
+
+          if [ -n "$COMMITS_TO_PICK" ]; then
+            git checkout "$TARGET_BRANCH"
             
-            git checkout $TARGET_BRANCH
-            git log --reverse --pretty=format:"%H" ${PARENT1}..${PARENT2} | while read commit; do
+            for commit in $COMMITS_TO_PICK; do
               echo "Cherry-picking: $commit"
-              if ! git cherry-pick $commit; then
-                echo "Conflict at commit: $commit"
+              if ! git cherry-pick "$commit"; then
+                echo "Conflict - aborting"
+                git cherry-pick --abort  
                 exit 1
               fi
             done
+            
+            git push origin "$TARGET_BRANCH"
+            echo "Success!"
+          else
+            echo "❌ No commits found for PR #${PR_NUMBER}"
+            exit 1
           fi
-          
-          git push origin $TARGET_BRANCH
-          echo "success=true" >> $GITHUB_OUTPUT
       
       - name: Handle conflicts
         if: failure()
