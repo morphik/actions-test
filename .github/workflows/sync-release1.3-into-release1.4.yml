@@ -4,7 +4,8 @@ on:
   workflow_dispatch:  # Add this line for manual testing
   pull_request_target:
     types: [closed]
-    branches: ['release1.3']
+    branches:
+      - "release1.3"
 
 # Explicit permissions for GITHUB_TOKEN
 permissions:
