@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         REPO_URL = 'https://github.com/morphik/actions-test.git'
+        REPO = 'github.com/morphik/actions-test.git'
+        ISSUES_URL = 'https://api.github.com/repos/morphik/actions-test/issues'
         GITHUB_CREDENTIALS = 'github-token'
         SOURCE_BRANCH = 'release1.3'
         TARGET_BRANCH = 'release1.4'
@@ -47,7 +49,7 @@ pipeline {
                         ]]
                     ])
                     
-                    echo "✅ Repository checked out successfully"
+                    echo "Repository checked out successfully"
                 }
             }
         }
@@ -64,10 +66,6 @@ pipeline {
                         returnStdout: true
                     ).trim()
                     
-                    echo "=== Recent commits on ${env.SOURCE_BRANCH} ==="
-                    echo recentCommits
-                    echo "========================================="
-                    
                     // Look for PR merge patterns in recent commits
                     def prNumber = ""
                     def commitToSync = ""
@@ -80,8 +78,7 @@ pipeline {
                     
                     echo "Latest commit message:"
                     echo latestCommitMsg
-                    
-                    // Extract PR number from commit message using shell instead of regex
+
                     // Patterns: "Merge pull request #123" or "(#123)" or "PR #123"
                     def prNumberExtract = sh(
                         script: """
@@ -92,9 +89,9 @@ pipeline {
                     
                     if (prNumberExtract) {
                         prNumber = prNumberExtract
-                        echo "✅ Found PR number: #${prNumber}"
+                        echo "Found PR number: #${prNumber}"
                     } else {
-                        echo "⚠️ No PR number found in latest commit"
+                        echo "No PR number found in latest commit"
                     }
                     
                     // Get the latest commit hash
@@ -121,7 +118,7 @@ pipeline {
                     try {
                         sh '''
                             git config user.name "Jenkins Bot"
-                            git config user.email "jenkins@yourcompany.com"
+                            git config user.email "jenkins-bot@spglobal.com"
                         '''
 
                         sh 'git fetch origin'
@@ -130,7 +127,7 @@ pipeline {
                         sh "git checkout ${env.TARGET_BRANCH}"
                         sh "git pull origin ${env.TARGET_BRANCH}"
                         
-                        echo "📋 Target branch ${env.TARGET_BRANCH} is at:"
+                        echo "Target branch ${env.TARGET_BRANCH} is at:"
                         sh "git log -1 --oneline"
                         
                         // Checkout source branch
@@ -139,7 +136,7 @@ pipeline {
                         
                         def commitToSync = env.COMMIT_TO_SYNC
                         
-                        echo "🍒 Preparing to cherry-pick: ${commitToSync}"
+                        echo "Preparing to cherry-pick: ${commitToSync}"
                         
                         // Switch to target branch for cherry-pick
                         sh "git checkout ${env.TARGET_BRANCH}"
@@ -154,14 +151,14 @@ pipeline {
                         // Attempt cherry-pick
                         def cherryPickResult
                         if (parentCount > 1) {
-                            echo "🔀 Merge commit detected (${parentCount} parents)"
+                            echo "Merge commit detected (${parentCount} parents)"
                             echo "Using -m 1 to cherry-pick mainline"
                             cherryPickResult = sh(
                                 script: "git cherry-pick -m 1 ${commitToSync}",
                                 returnStatus: true
                             )
                         } else {
-                            echo "📝 Regular commit - cherry-picking normally"
+                            echo "Regular commit - cherry-picking normally"
                             cherryPickResult = sh(
                                 script: "git cherry-pick ${commitToSync}",
                                 returnStatus: true
@@ -171,7 +168,7 @@ pipeline {
                         // Check if cherry-pick was successful
                         if (cherryPickResult != 0) {
                             // Cherry-pick failed - likely conflicts
-                            echo "❌ Cherry-pick failed with exit code ${cherryPickResult}"
+                            echo "Cherry-pick failed with exit code ${cherryPickResult}"
                             
                             // Get list of conflicting files
                             def conflictFiles = sh(
@@ -179,7 +176,7 @@ pipeline {
                                 returnStdout: true
                             ).trim()
                             
-                            echo "⚠️ Conflicting files:"
+                            echo "Conflicting files:"
                             echo conflictFiles
                             
                             // Store conflict info for later use
@@ -193,12 +190,12 @@ pipeline {
                             error("Cherry-pick conflicts detected - manual resolution required")
                         }
 
-                        echo "📤 Pushing changes to ${env.TARGET_BRANCH}..."
+                        echo "Pushing changes to ${env.TARGET_BRANCH}..."
                         
                         // Push using credentials
                         withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS, variable: 'GITHUB_TOKEN')]) {
                             sh """
-                                git push https://x-access-token:${GITHUB_TOKEN}@github.com/morphik/actions-test.git ${env.TARGET_BRANCH}
+                                git push https://x-access-token:${GITHUB_TOKEN}@${env.REPO} ${env.TARGET_BRANCH}
                             """
                         }
 
@@ -229,7 +226,7 @@ pipeline {
     post {
         success {
             script {
-                echo "✅ Pipeline completed successfully"
+                echo "Pipeline completed successfully"
                 
                 if (env.PR_NUMBER != '0') {
                     try {
@@ -239,12 +236,12 @@ pipeline {
                                     -H "Authorization: token \$GITHUB_TOKEN" \\
                                     -H "Content-Type: application/json" \\
                                     -d '{"body": "✅ **Jenkins Auto-sync Successful!**\\n\\nChanges from PR #${env.PR_NUMBER} have been synced to ${env.TARGET_BRANCH}.\\n\\n🔗 [Jenkins Build](${env.BUILD_URL})\\n📝 Commit: ${env.COMMIT_TO_SYNC}"}' \\
-                                    "https://api.github.com/repos/morphik/actions-test/issues/${env.PR_NUMBER}/comments" \\
+                                    ${env.ISSUES_URL}/${env.PR_NUMBER}/comments" \\
                                     || echo "Could not post comment to GitHub"
                             """
                         }
                     } catch (Exception e) {
-                        echo "⚠️ Could not post comment: ${e.getMessage()}"
+                        echo "Could not post comment: ${e.getMessage()}"
                     }
                 }
             }
@@ -252,7 +249,7 @@ pipeline {
 
         failure {
             script {
-                echo "❌ Pipeline failed"
+                echo "Pipeline failed"
                 
                 if (env.PR_NUMBER != '0') {
                     try {
@@ -261,13 +258,13 @@ pipeline {
                                 curl -s -X POST \\
                                     -H "Authorization: token \$GITHUB_TOKEN" \\
                                     -H "Content-Type: application/json" \\
-                                    -d '{"title": "🚨 Jenkins sync failed: PR #${env.PR_NUMBER}", "body": "**Sync failed**\\n\\nSource: ${env.SOURCE_BRANCH}\\nTarget: ${env.TARGET_BRANCH}\\nError: ${env.SYNC_ERROR ?: 'Unknown'}\\n\\nBuild: ${env.BUILD_URL}", "labels": ["jenkins-sync-failed"]}' \\
-                                    "https://api.github.com/repos/morphik/actions-test/issues" \\
+                                    -d '{"title": "Jenkins sync failed: PR #${env.PR_NUMBER}", "body": "**Sync failed**\\n\\nSource: ${env.SOURCE_BRANCH}\\nTarget: ${env.TARGET_BRANCH}\\nError: ${env.SYNC_ERROR ?: 'Unknown'}\\n\\nBuild: ${env.BUILD_URL}", "labels": ["jenkins-sync-failed"]}' \\
+                                    ${env.ISSUES_URL} \\
                                     || echo "Could not create GitHub issue"
                             """
                         }
                     } catch (Exception e) {
-                        echo "⚠️ Could not create issue: ${e.getMessage()}"
+                        echo "Could not create issue: ${e.getMessage()}"
                     }
                 }
             }
