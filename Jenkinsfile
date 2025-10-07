@@ -18,7 +18,7 @@ pipeline {
                     echo "GIT_PREVIOUS_COMMIT: ${env.GIT_PREVIOUS_COMMIT ?: 'not set'}"
                     echo "GIT_URL: ${env.GIT_URL ?: 'not set'}"
                     echo "BUILD_CAUSE: ${currentBuild.buildCauses}"
-
+                    
                     // Print all environment variables for debugging
                     echo "=== All Environment Variables ==="
                     sh 'env | grep -i git || true'
@@ -46,7 +46,7 @@ pipeline {
                             url: env.REPO_URL
                         ]]
                     ])
-
+                    
                     echo "✅ Repository checked out successfully"
                 }
             }
@@ -57,30 +57,30 @@ pipeline {
                 script {
                     // Get the latest commits from source branch
                     sh "git fetch origin ${env.SOURCE_BRANCH}"
-
+                    
                     // Check recent commits for PR merge indicators
                     def recentCommits = sh(
                         script: "git log -5 --oneline origin/${env.SOURCE_BRANCH}",
                         returnStdout: true
                     ).trim()
-
+                    
                     echo "=== Recent commits on ${env.SOURCE_BRANCH} ==="
                     echo recentCommits
                     echo "========================================="
-
+                    
                     // Look for PR merge patterns in recent commits
                     def prNumber = ""
                     def commitToSync = ""
-
+                    
                     // Check if latest commit is a PR merge (common patterns)
                     def latestCommitMsg = sh(
                         script: "git log -1 --pretty=%B origin/${env.SOURCE_BRANCH}",
                         returnStdout: true
                     ).trim()
-
+                    
                     echo "Latest commit message:"
                     echo latestCommitMsg
-
+                    
                     // Extract PR number from commit message using shell instead of regex
                     // Patterns: "Merge pull request #123" or "(#123)" or "PR #123"
                     def prNumberExtract = sh(
@@ -89,24 +89,24 @@ pipeline {
                         """,
                         returnStdout: true
                     ).trim()
-
+                    
                     if (prNumberExtract) {
                         prNumber = prNumberExtract
                         echo "✅ Found PR number: #${prNumber}"
                     } else {
                         echo "⚠️ No PR number found in latest commit"
                     }
-
+                    
                     // Get the latest commit hash
                     commitToSync = sh(
                         script: "git rev-parse origin/${env.SOURCE_BRANCH}",
                         returnStdout: true
                     ).trim()
-
+                    
                     env.PR_NUMBER = prNumber ?: '0'
                     env.COMMIT_TO_SYNC = commitToSync
                     env.COMMIT_MESSAGE = latestCommitMsg
-
+                    
                     echo "=== Sync Information ==="
                     echo "PR Number: ${env.PR_NUMBER}"
                     echo "Commit: ${env.COMMIT_TO_SYNC}"
@@ -125,22 +125,22 @@ pipeline {
                         '''
 
                         sh 'git fetch origin'
-
+                        
                         // Checkout and update target branch
                         sh "git checkout ${env.TARGET_BRANCH}"
                         sh "git pull origin ${env.TARGET_BRANCH}"
-
+                        
                         echo "📋 Target branch ${env.TARGET_BRANCH} is at:"
                         sh "git log -1 --oneline"
-
+                        
                         // Checkout source branch
                         sh "git checkout ${env.SOURCE_BRANCH}"
                         sh "git pull origin ${env.SOURCE_BRANCH}"
-
+                        
                         def commitToSync = env.COMMIT_TO_SYNC
-
+                        
                         echo "🍒 Preparing to cherry-pick: ${commitToSync}"
-
+                        
                         // Switch to target branch for cherry-pick
                         sh "git checkout ${env.TARGET_BRANCH}"
 
@@ -151,34 +151,74 @@ pipeline {
                         ).trim() as Integer
                         parentCount = parentCount - 1
 
+                        // Attempt cherry-pick
+                        def cherryPickResult
                         if (parentCount > 1) {
                             echo "🔀 Merge commit detected (${parentCount} parents)"
                             echo "Using -m 1 to cherry-pick mainline"
-                            sh "git cherry-pick -m 1 ${commitToSync}"
+                            cherryPickResult = sh(
+                                script: "git cherry-pick -m 1 ${commitToSync}",
+                                returnStatus: true
+                            )
                         } else {
                             echo "📝 Regular commit - cherry-picking normally"
-                            sh "git cherry-pick ${commitToSync}"
+                            cherryPickResult = sh(
+                                script: "git cherry-pick ${commitToSync}",
+                                returnStatus: true
+                            )
+                        }
+
+                        // Check if cherry-pick was successful
+                        if (cherryPickResult != 0) {
+                            // Cherry-pick failed - likely conflicts
+                            echo "❌ Cherry-pick failed with exit code ${cherryPickResult}"
+                            
+                            // Get list of conflicting files
+                            def conflictFiles = sh(
+                                script: "git diff --name-only --diff-filter=U || echo 'unknown'",
+                                returnStdout: true
+                            ).trim()
+                            
+                            echo "⚠️ Conflicting files:"
+                            echo conflictFiles
+                            
+                            // Store conflict info for later use
+                            env.CONFLICT_FILES = conflictFiles
+                            env.SYNC_SUCCESS = 'false'
+                            env.SYNC_ERROR = "Cherry-pick conflict in files: ${conflictFiles}"
+                            
+                            // Abort the cherry-pick
+                            sh 'git cherry-pick --abort'
+                            
+                            error("Cherry-pick conflicts detected - manual resolution required")
                         }
 
                         echo "📤 Pushing changes to ${env.TARGET_BRANCH}..."
+                        
+                        // Push using credentials
                         withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS, variable: 'GITHUB_TOKEN')]) {
                             sh """
                                 git push https://x-access-token:${GITHUB_TOKEN}@github.com/morphik/actions-test.git ${env.TARGET_BRANCH}
                             """
                         }
 
-
-
                         env.SYNC_SUCCESS = 'true'
                         echo "✅ Successfully synced commit ${commitToSync} to ${env.TARGET_BRANCH}"
 
                     } catch (Exception e) {
                         env.SYNC_SUCCESS = 'false'
-                        env.SYNC_ERROR = e.getMessage()
-                        echo "❌ Sync failed: ${e.getMessage()}"
-
+                        
+                        // If we don't have conflict info yet, set generic error
+                        if (!env.SYNC_ERROR) {
+                            env.SYNC_ERROR = e.getMessage()
+                        }
+                        
+                        echo "❌ Sync failed: ${env.SYNC_ERROR}"
+                        
+                        // Make sure any ongoing cherry-pick is aborted
                         sh 'git cherry-pick --abort || true'
-
+                        sh 'git reset --hard HEAD || true'
+                        
                         throw e
                     }
                 }
@@ -190,7 +230,7 @@ pipeline {
         success {
             script {
                 echo "✅ Pipeline completed successfully"
-
+                
                 if (env.PR_NUMBER != '0') {
                     try {
                         withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS, variable: 'GITHUB_TOKEN')]) {
@@ -213,7 +253,7 @@ pipeline {
         failure {
             script {
                 echo "❌ Pipeline failed"
-
+                
                 if (env.PR_NUMBER != '0') {
                     try {
                         withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS, variable: 'GITHUB_TOKEN')]) {
