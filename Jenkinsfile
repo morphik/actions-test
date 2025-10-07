@@ -81,13 +81,17 @@ pipeline {
                     echo "Latest commit message:"
                     echo latestCommitMsg
 
-                    // Extract PR number from commit message
+                    // Extract PR number from commit message using shell instead of regex
                     // Patterns: "Merge pull request #123" or "(#123)" or "PR #123"
-                    def prPattern = /#(\d+)/
-                    def matcher = (latestCommitMsg =~ prPattern)
+                    def prNumberExtract = sh(
+                        script: """
+                            echo '${latestCommitMsg}' | grep -oE '#[0-9]+' | head -1 | sed 's/#//' || echo ''
+                        """,
+                        returnStdout: true
+                    ).trim()
 
-                    if (matcher.find()) {
-                        prNumber = matcher.group(1)
+                    if (prNumberExtract) {
+                        prNumber = prNumberExtract
                         echo "✅ Found PR number: #${prNumber}"
                     } else {
                         echo "⚠️ No PR number found in latest commit"
