@@ -161,7 +161,13 @@ pipeline {
                         }
 
                         echo "📤 Pushing changes to ${env.TARGET_BRANCH}..."
-                        sh "git push origin ${env.TARGET_BRANCH}"
+                        withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS, variable: 'GITHUB_TOKEN')]) {
+                            sh """
+                                git push https://x-access-token:${GITHUB_TOKEN}@github.com/morphik/actions-test.git ${env.TARGET_BRANCH}
+                            """
+                        }
+
+
 
                         env.SYNC_SUCCESS = 'true'
                         echo "✅ Successfully synced commit ${commitToSync} to ${env.TARGET_BRANCH}"
