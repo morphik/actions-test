@@ -171,9 +171,7 @@ pipeline {
                             curl -X POST \\
                                 -H "Authorization: token \$GITHUB_TOKEN" \\
                                 -H "Content-Type: application/json" \\
-                                -d '{
-                                    "body": "✅ **Jenkins Auto-sync Successful!**\\n\\nChanges from PR #${env.PR_NUMBER} have been automatically synced to \`${env.TARGET_BRANCH}\` branch.\\n\\n🔗 [Jenkins Build](${env.BUILD_URL})"
-                                }' \\
+                                -d '{"body": "✅ **Jenkins Auto-sync Successful!**\\n\\nChanges from PR #${env.PR_NUMBER} have been automatically synced to ${env.TARGET_BRANCH} branch.\\n\\n🔗 [Jenkins Build](${env.BUILD_URL})"}' \\
                                 "https://api.github.com/repos/morphik/actions-test/issues/${env.PR_NUMBER}/comments"
                         """
                     }
@@ -190,11 +188,7 @@ pipeline {
                             curl -X POST \\
                                 -H "Authorization: token \$GITHUB_TOKEN" \\
                                 -H "Content-Type: application/json" \\
-                                -d '{
-                                    "title": "🚨 Jenkins sync failed: PR #${env.PR_NUMBER} (${env.SOURCE_BRANCH} → ${env.TARGET_BRANCH})",
-                                    "body": "**Automatic sync failed due to conflicts**\\n\\n**PR Details:**\\n- PR #${env.PR_NUMBER}: \\"${env.PR_TITLE}\\"\\n- Author: @${env.PR_AUTHOR}\\n- Source: \`${env.SOURCE_BRANCH}\`\\n- Target: \`${env.TARGET_BRANCH}\`\\n\\n**Error:** ${env.SYNC_ERROR ?: 'Unknown error'}\\n\\n**Jenkins Build:** ${env.BUILD_URL}\\n\\n**Manual sync required:**\\n\`\`\`bash\\ngit checkout ${env.TARGET_BRANCH}\\ngit pull origin ${env.TARGET_BRANCH}\\n\\n# Find and cherry-pick the commit\\ngit log --oneline ${env.SOURCE_BRANCH} --grep=\\"#${env.PR_NUMBER}\\"\\ngit cherry-pick <COMMIT_SHA>\\n\\n# Resolve conflicts, then:\\ngit add .\\ngit commit\\ngit push origin ${env.TARGET_BRANCH}\\n\`\`\`",
-                                    "labels": ["jenkins-sync-failed", "needs-manual-intervention"]
-                                }' \\
+                                -d '{"title": "🚨 Jenkins sync failed: PR #${env.PR_NUMBER} (${env.SOURCE_BRANCH} → ${env.TARGET_BRANCH})", "body": "**Automatic sync failed due to conflicts**\\n\\n**PR Details:**\\n- PR #${env.PR_NUMBER}: ${env.PR_TITLE}\\n- Author: @${env.PR_AUTHOR}\\n- Source: ${env.SOURCE_BRANCH}\\n- Target: ${env.TARGET_BRANCH}\\n\\n**Error:** ${env.SYNC_ERROR ?: 'Unknown error'}\\n\\n**Jenkins Build:** ${env.BUILD_URL}\\n\\n**Manual sync required:**\\n\\ngit checkout ${env.TARGET_BRANCH}\\ngit pull origin ${env.TARGET_BRANCH}\\n\\ngit log --oneline ${env.SOURCE_BRANCH} --grep=#${env.PR_NUMBER}\\ngit cherry-pick COMMIT_SHA\\n\\ngit add .\\ngit commit\\ngit push origin ${env.TARGET_BRANCH}", "labels": ["jenkins-sync-failed", "needs-manual-intervention"]}' \\
                                 "https://api.github.com/repos/morphik/actions-test/issues"
                         """
                     }
