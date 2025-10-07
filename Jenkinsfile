@@ -1,9 +1,6 @@
 pipeline {
     agent any
 
-    // No triggers block - will be triggered by webhook only
-    // Configure in Jenkins job UI: Build Triggers -> "GitHub hook trigger for GITScm polling"
-
     environment {
         REPO_URL = 'https://github.com/morphik/actions-test.git'
         GITHUB_CREDENTIALS = 'github-token'
@@ -12,20 +9,20 @@ pipeline {
     }
 
     stages {
-        stage('Verify PR Merged') {
+        stage('Debug Webhook Info') {
             steps {
                 script {
-                    // Check if this was triggered by a PR merge
-                    def prMerged = env.ghprbPullId && env.ghprbActualCommit
+                    echo "=== Webhook Debug Information ==="
+                    echo "GIT_BRANCH: ${env.GIT_BRANCH ?: 'not set'}"
+                    echo "GIT_COMMIT: ${env.GIT_COMMIT ?: 'not set'}"
+                    echo "GIT_PREVIOUS_COMMIT: ${env.GIT_PREVIOUS_COMMIT ?: 'not set'}"
+                    echo "GIT_URL: ${env.GIT_URL ?: 'not set'}"
+                    echo "BUILD_CAUSE: ${currentBuild.buildCauses}"
 
-                    if (!prMerged) {
-                        echo "⚠️ This pipeline should only run on PR merge events"
-                        echo "Skipping execution..."
-                        currentBuild.result = 'NOT_BUILT'
-                        error("Pipeline not triggered by PR merge - skipping")
-                    }
-
-                    echo "✅ Verified: Triggered by PR merge"
+                    // Print all environment variables for debugging
+                    echo "=== All Environment Variables ==="
+                    sh 'env | grep -i git || true'
+                    echo "=============================="
                 }
             }
         }
@@ -35,12 +32,13 @@ pipeline {
                 script {
                     deleteDir()
 
+                    // Checkout with full history to find all commits
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: "*/${env.SOURCE_BRANCH}"]],
                         doGenerateSubmoduleConfigurations: false,
                         extensions: [
-                            [$class: 'CloneOption', depth: 0, noTags: false, reference: '', shallow: false]
+                            [$class: 'CloneOption', depth: 0, noTags: false, shallow: false]
                         ],
                         submoduleCfg: [],
                         userRemoteConfigs: [[
@@ -48,25 +46,67 @@ pipeline {
                             url: env.REPO_URL
                         ]]
                     ])
+
+                    echo "✅ Repository checked out successfully"
                 }
             }
         }
 
-        stage('Detect PR Info') {
+        stage('Detect Changes') {
             steps {
                 script {
-                    env.PR_NUMBER = env.ghprbPullId ?: env.GHPRB_PULL_ID ?: '0'
-                    env.PR_TITLE = env.ghprbPullTitle ?: env.GHPRB_PULL_TITLE ?: 'Unknown'
-                    env.PR_AUTHOR = env.ghprbPullAuthorLogin ?: env.GHPRB_PULL_AUTHOR_LOGIN ?: 'unknown'
-                    env.PR_TARGET_BRANCH = env.ghprbTargetBranch ?: env.GHPRB_TARGET_BRANCH ?: env.SOURCE_BRANCH
+                    // Get the latest commits from source branch
+                    sh "git fetch origin ${env.SOURCE_BRANCH}"
 
-                    echo "=== PR Merge Information ==="
-                    echo "PR Number: #${env.PR_NUMBER}"
-                    echo "PR Title: ${env.PR_TITLE}"
-                    echo "Author: ${env.PR_AUTHOR}"
-                    echo "Target Branch: ${env.PR_TARGET_BRANCH}"
-                    echo "Sync: ${env.SOURCE_BRANCH} → ${env.TARGET_BRANCH}"
-                    echo "============================"
+                    // Check recent commits for PR merge indicators
+                    def recentCommits = sh(
+                        script: "git log -5 --oneline origin/${env.SOURCE_BRANCH}",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "=== Recent commits on ${env.SOURCE_BRANCH} ==="
+                    echo recentCommits
+                    echo "========================================="
+
+                    // Look for PR merge patterns in recent commits
+                    def prNumber = ""
+                    def commitToSync = ""
+
+                    // Check if latest commit is a PR merge (common patterns)
+                    def latestCommitMsg = sh(
+                        script: "git log -1 --pretty=%B origin/${env.SOURCE_BRANCH}",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Latest commit message:"
+                    echo latestCommitMsg
+
+                    // Extract PR number from commit message
+                    // Patterns: "Merge pull request #123" or "(#123)" or "PR #123"
+                    def prPattern = /#(\d+)/
+                    def matcher = (latestCommitMsg =~ prPattern)
+
+                    if (matcher.find()) {
+                        prNumber = matcher.group(1)
+                        echo "✅ Found PR number: #${prNumber}"
+                    } else {
+                        echo "⚠️ No PR number found in latest commit"
+                    }
+
+                    // Get the latest commit hash
+                    commitToSync = sh(
+                        script: "git rev-parse origin/${env.SOURCE_BRANCH}",
+                        returnStdout: true
+                    ).trim()
+
+                    env.PR_NUMBER = prNumber ?: '0'
+                    env.COMMIT_TO_SYNC = commitToSync
+                    env.COMMIT_MESSAGE = latestCommitMsg
+
+                    echo "=== Sync Information ==="
+                    echo "PR Number: ${env.PR_NUMBER}"
+                    echo "Commit: ${env.COMMIT_TO_SYNC}"
+                    echo "======================="
                 }
             }
         }
@@ -82,59 +122,25 @@ pipeline {
 
                         sh 'git fetch origin'
 
+                        // Checkout and update target branch
                         sh "git checkout ${env.TARGET_BRANCH}"
                         sh "git pull origin ${env.TARGET_BRANCH}"
 
+                        echo "📋 Target branch ${env.TARGET_BRANCH} is at:"
+                        sh "git log -1 --oneline"
+
+                        // Checkout source branch
                         sh "git checkout ${env.SOURCE_BRANCH}"
                         sh "git pull origin ${env.SOURCE_BRANCH}"
 
-                        def prNumber = env.PR_NUMBER
-                        def commitToSync = ""
+                        def commitToSync = env.COMMIT_TO_SYNC
 
-                        if (prNumber != '0') {
-                            echo "🔍 Looking for PR #${prNumber} commits..."
+                        echo "🍒 Preparing to cherry-pick: ${commitToSync}"
 
-                            def squashCommit = sh(
-                                script: "git log --oneline --grep='#${prNumber}' --format='%H' -n 1 || true",
-                                returnStdout: true
-                            ).trim()
-
-                            if (squashCommit) {
-                                commitToSync = squashCommit
-                                echo "✅ Found squash commit: ${commitToSync}"
-                            } else {
-                                def mergeCommit = sh(
-                                    script: "git log --merges --grep='#${prNumber}' --format='%H' -n 1 || true",
-                                    returnStdout: true
-                                ).trim()
-
-                                if (mergeCommit) {
-                                    commitToSync = mergeCommit
-                                    echo "✅ Found merge commit: ${commitToSync}"
-                                } else {
-                                    echo "⚠️ Could not find PR #${prNumber} commits, using HEAD"
-                                    commitToSync = sh(
-                                        script: 'git rev-parse HEAD',
-                                        returnStdout: true
-                                    ).trim()
-                                }
-                            }
-                        } else {
-                            commitToSync = sh(
-                                script: 'git rev-parse HEAD',
-                                returnStdout: true
-                            ).trim()
-                            echo "📝 Using latest commit: ${commitToSync}"
-                        }
-
-                        def commitMsg = sh(
-                            script: "git log --oneline -n 1 ${commitToSync}",
-                            returnStdout: true
-                        ).trim()
-                        echo "📋 Commit to sync: ${commitMsg}"
-
+                        // Switch to target branch for cherry-pick
                         sh "git checkout ${env.TARGET_BRANCH}"
 
+                        // Check if it's a merge commit
                         def parentCount = sh(
                             script: "git rev-list --parents -n 1 ${commitToSync} | wc -w",
                             returnStdout: true
@@ -142,25 +148,27 @@ pipeline {
                         parentCount = parentCount - 1
 
                         if (parentCount > 1) {
-                            echo "🔀 Merge commit detected (${parentCount} parents), using -m 1"
+                            echo "🔀 Merge commit detected (${parentCount} parents)"
+                            echo "Using -m 1 to cherry-pick mainline"
                             sh "git cherry-pick -m 1 ${commitToSync}"
                         } else {
-                            echo "📝 Regular commit, cherry-picking"
+                            echo "📝 Regular commit - cherry-picking normally"
                             sh "git cherry-pick ${commitToSync}"
                         }
 
-                        echo "📤 Pushing to ${env.TARGET_BRANCH}..."
+                        echo "📤 Pushing changes to ${env.TARGET_BRANCH}..."
                         sh "git push origin ${env.TARGET_BRANCH}"
 
                         env.SYNC_SUCCESS = 'true'
-                        env.SYNCED_COMMIT = commitToSync
-                        echo "✅ Successfully synced PR #${env.PR_NUMBER} to ${env.TARGET_BRANCH}"
+                        echo "✅ Successfully synced commit ${commitToSync} to ${env.TARGET_BRANCH}"
 
                     } catch (Exception e) {
                         env.SYNC_SUCCESS = 'false'
                         env.SYNC_ERROR = e.getMessage()
                         echo "❌ Sync failed: ${e.getMessage()}"
+
                         sh 'git cherry-pick --abort || true'
+
                         throw e
                     }
                 }
@@ -171,20 +179,20 @@ pipeline {
     post {
         success {
             script {
-                echo "✅ Branch sync completed successfully"
+                echo "✅ Pipeline completed successfully"
 
                 if (env.PR_NUMBER != '0') {
                     try {
                         withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS, variable: 'GITHUB_TOKEN')]) {
                             sh """
-                                curl -X POST \\
+                                curl -s -X POST \\
                                     -H "Authorization: token \$GITHUB_TOKEN" \\
                                     -H "Content-Type: application/json" \\
-                                    -d '{"body": "✅ **Jenkins Auto-sync Successful!**\\n\\nChanges from PR #${env.PR_NUMBER} have been automatically synced to ${env.TARGET_BRANCH} branch.\\n\\n🔗 [Jenkins Build](${env.BUILD_URL})\\n📝 Commit: ${env.SYNCED_COMMIT}"}' \\
-                                    "https://api.github.com/repos/morphik/actions-test/issues/${env.PR_NUMBER}/comments"
+                                    -d '{"body": "✅ **Jenkins Auto-sync Successful!**\\n\\nChanges from PR #${env.PR_NUMBER} have been synced to ${env.TARGET_BRANCH}.\\n\\n🔗 [Jenkins Build](${env.BUILD_URL})\\n📝 Commit: ${env.COMMIT_TO_SYNC}"}' \\
+                                    "https://api.github.com/repos/morphik/actions-test/issues/${env.PR_NUMBER}/comments" \\
+                                    || echo "Could not post comment to GitHub"
                             """
                         }
-                        echo "✅ Posted success comment to PR #${env.PR_NUMBER}"
                     } catch (Exception e) {
                         echo "⚠️ Could not post comment: ${e.getMessage()}"
                     }
@@ -194,20 +202,20 @@ pipeline {
 
         failure {
             script {
-                echo "❌ Branch sync failed"
+                echo "❌ Pipeline failed"
 
                 if (env.PR_NUMBER != '0') {
                     try {
                         withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS, variable: 'GITHUB_TOKEN')]) {
                             sh """
-                                curl -X POST \\
+                                curl -s -X POST \\
                                     -H "Authorization: token \$GITHUB_TOKEN" \\
                                     -H "Content-Type: application/json" \\
-                                    -d '{"title": "🚨 Jenkins sync failed: PR #${env.PR_NUMBER} (${env.SOURCE_BRANCH} → ${env.TARGET_BRANCH})", "body": "**Automatic sync failed**\\n\\n**PR Details:**\\n- PR #${env.PR_NUMBER}: ${env.PR_TITLE}\\n- Author: @${env.PR_AUTHOR}\\n- Source: ${env.SOURCE_BRANCH}\\n- Target: ${env.TARGET_BRANCH}\\n\\n**Error:** ${env.SYNC_ERROR ?: 'Unknown error'}\\n\\n**Jenkins Build:** ${env.BUILD_URL}\\n\\n**Manual sync:**\\n\\ngit checkout ${env.TARGET_BRANCH}\\ngit pull\\ngit log --grep=#${env.PR_NUMBER} ${env.SOURCE_BRANCH}\\ngit cherry-pick COMMIT_SHA\\ngit push origin ${env.TARGET_BRANCH}", "labels": ["jenkins-sync-failed", "manual-intervention"]}' \\
-                                    "https://api.github.com/repos/morphik/actions-test/issues"
+                                    -d '{"title": "🚨 Jenkins sync failed: PR #${env.PR_NUMBER}", "body": "**Sync failed**\\n\\nSource: ${env.SOURCE_BRANCH}\\nTarget: ${env.TARGET_BRANCH}\\nError: ${env.SYNC_ERROR ?: 'Unknown'}\\n\\nBuild: ${env.BUILD_URL}", "labels": ["jenkins-sync-failed"]}' \\
+                                    "https://api.github.com/repos/morphik/actions-test/issues" \\
+                                    || echo "Could not create GitHub issue"
                             """
                         }
-                        echo "✅ Created GitHub issue for sync failure"
                     } catch (Exception e) {
                         echo "⚠️ Could not create issue: ${e.getMessage()}"
                     }
