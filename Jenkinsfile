@@ -6,8 +6,7 @@ pipeline {
         REPO = 'github.com/morphik/actions-test.git'
         ISSUES_URL = 'https://api.github.com/repos/morphik/actions-test/issues'
         GITHUB_CREDENTIALS = 'github-token'
-        SOURCE_BRANCH = 'release1.3'
-        TARGET_BRANCH = 'release1.4'
+        SKIP_SYNC = 'false'
     }
 
     stages {
@@ -29,7 +28,79 @@ pipeline {
             }
         }
 
+        stage('Determine Branch Mapping') {
+            steps {
+                script {
+                    // Parse branch order parameter
+                    def branchList = params.branchOrder.split('\n').collect { it.trim() }.findAll { it }
+
+                    echo "=== Branch Order ==="
+                    branchList.eachWithIndex { branch, index ->
+                        echo "${index + 1}. ${branch}"
+                    }
+                    echo "==================="
+
+                    // Determine which branch triggered the build
+                    def triggeredBranch = null
+
+                    // Try to get branch from GIT_BRANCH environment variable
+                    if (env.GIT_BRANCH) {
+                        triggeredBranch = env.GIT_BRANCH.replaceAll('origin/', '').replaceAll('refs/heads/', '')
+                        echo "Detected branch from GIT_BRANCH: ${triggeredBranch}"
+                    }
+
+                    // If still not found, try to detect from git
+                    if (!triggeredBranch) {
+                        triggeredBranch = sh(
+                            script: 'git rev-parse --abbrev-ref HEAD',
+                            returnStdout: true
+                        ).trim()
+                        echo "Detected branch from git: ${triggeredBranch}"
+                    }
+
+                    echo "Triggered branch: ${triggeredBranch}"
+
+                    // Find triggered branch in the list
+                    def sourceBranchIndex = branchList.indexOf(triggeredBranch)
+
+                    if (sourceBranchIndex == -1) {
+                        echo "Branch '${triggeredBranch}' is not in the branch order list"
+                        echo "Skipping sync - branch not configured for sync"
+                        currentBuild.result = 'SUCCESS'
+                        env.SKIP_SYNC = 'true'
+                        env.SKIP_REASON = "Branch '${triggeredBranch}' not in sync configuration"
+                    }
+
+                    // Check if this is the last branch in the list
+                    if (sourceBranchIndex == branchList.size() - 1) {
+                        echo "Branch '${triggeredBranch}' is the last branch in the list"
+                        echo "Skipping sync - no target branch available"
+                        currentBuild.result = 'SUCCESS'
+                        env.SKIP_SYNC = 'true'
+                        env.SKIP_REASON = "Branch '${triggeredBranch}' is the last in sync order"
+                    }
+
+                    // Get source and target branches
+                    def sourceBranch = branchList[sourceBranchIndex]
+                    def targetBranch = branchList[sourceBranchIndex + 1]
+
+                    env.SOURCE_BRANCH = sourceBranch
+                    env.TARGET_BRANCH = targetBranch
+
+                    echo "=== Branch Mapping ==="
+                    echo "Source Branch: ${env.SOURCE_BRANCH}"
+                    echo "Target Branch: ${env.TARGET_BRANCH}"
+                    echo "====================="
+                }
+            }
+        }
+
         stage('Checkout Repository') {
+            when {
+                expression {
+                    return env.SKIP_SYNC != 'true'
+                }
+            }
             steps {
                 script {
                     deleteDir()
@@ -55,12 +126,15 @@ pipeline {
         }
 
         stage('Detect Changes') {
+            when {
+                expression {
+                    return env.SKIP_SYNC != 'true'
+                }
+            }
             steps {
                 script {
                     // Get the latest commits from source branch
                     sh "git fetch origin ${env.SOURCE_BRANCH}"
-                    // Initial state of SKIP_SYNC
-                    env.SKIP_SYNC = 'false'
 
                     // Look for PR merge patterns in recent commits
                     def prNumber = ""
