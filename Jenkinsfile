@@ -139,6 +139,7 @@ pipeline {
                 script {
                     // Double-check skip condition
                     if (env.SKIP_SYNC == 'true') {
+                        echo "SKIP SYNC => ${env.SKIP_SYNC}"
                         return
                     }
 
