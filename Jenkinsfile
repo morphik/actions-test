@@ -133,15 +133,12 @@ pipeline {
 
         stage('Sync Branches') {
             when {
-                expression { env.SKIP_SYNC != 'true' }
+                expression {
+                    return env.SKIP_SYNC != 'true'
+                }
             }
             steps {
                 script {
-                    // Double-check skip condition
-                    if (env.SKIP_SYNC == 'true') {
-                        echo "SKIP SYNC => ${env.SKIP_SYNC}"
-                        return
-                    }
 
                     try {
                         sh '''
