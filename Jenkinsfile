@@ -59,6 +59,8 @@ pipeline {
                 script {
                     // Get the latest commits from source branch
                     sh "git fetch origin ${env.SOURCE_BRANCH}"
+                    // Initial state of SKIP_SYNC
+                    env.SKIP_SYNC = 'false'
 
                     // Check recent commits for PR merge indicators
                     def recentCommits = sh(
@@ -121,7 +123,6 @@ pipeline {
                     env.PR_NUMBER = prNumber ?: '0'
                     env.COMMIT_TO_SYNC = commitToSync
                     env.COMMIT_MESSAGE = latestCommitMsg
-                    env.SKIP_SYNC = 'false'
 
                     echo "=== Sync Information ==="
                     echo "PR Number: ${env.PR_NUMBER}"
