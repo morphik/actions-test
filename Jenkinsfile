@@ -25,6 +25,11 @@ pipeline {
                     echo "=== All Environment Variables ==="
                     sh 'env | grep -i git || true'
                     echo "=============================="
+
+                    echo "BRANCHORDER: ${params.branchOrder}"
+
+                    echo "=============================="
+                    echo "=============================="
                 }
             }
         }
