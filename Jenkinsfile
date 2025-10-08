@@ -248,7 +248,7 @@ pipeline {
             script {
                 echo "Pipeline completed successfully"
 
-                if (env.PR_NUMBER != '0') {
+                if (env.PR_NUMBER != '0' && env.SKIP_SYNC != 'true') {
                     try {
                         withCredentials([string(credentialsId: env.GITHUB_CREDENTIALS, variable: 'GITHUB_TOKEN')]) {
                             sh """
