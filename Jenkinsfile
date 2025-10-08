@@ -95,7 +95,6 @@ pipeline {
                         echo "Skipping sync - this is not a PR merge"
                         currentBuild.result = 'SUCCESS'
                         env.SKIP_SYNC = 'true'
-                        error("SKIP: No PR number found - not a PR merge")
                     }
 
                     // Check for "no-sync" keyword in commit message
@@ -111,7 +110,6 @@ pipeline {
                         echo "Skipping sync as requested"
                         currentBuild.result = 'SUCCESS'
                         env.SKIP_SYNC = 'true'
-                        error("SKIP: no-sync keyword found")
                     }
 
                     // Get the latest commit hash
