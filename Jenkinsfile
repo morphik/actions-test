@@ -62,12 +62,6 @@ pipeline {
                     // Initial state of SKIP_SYNC
                     env.SKIP_SYNC = 'false'
 
-                    // Check recent commits for PR merge indicators
-                    def recentCommits = sh(
-                        script: "git log -5 --oneline origin/${env.SOURCE_BRANCH}",
-                        returnStdout: true
-                    ).trim()
-
                     // Look for PR merge patterns in recent commits
                     def prNumber = ""
                     def commitToSync = ""
