@@ -262,7 +262,7 @@ pipeline {
                                     -H "Authorization: token \$GITHUB_TOKEN" \\
                                     -H "Content-Type: application/json" \\
                                     -d '{"body": "**Jenkins Auto-sync Successful!**\\n\\nChanges from PR #${env.PR_NUMBER} have been synced to ${env.TARGET_BRANCH}.\\n\\n[Jenkins Build](${env.BUILD_URL})\\nCommit: ${env.COMMIT_TO_SYNC}"}' \\
-                                    ${env.ISSUES_URL}/${env.PR_NUMBER}/comments" \\
+                                    "${env.ISSUES_URL}/${env.PR_NUMBER}/comments" \\
                                     || echo "Could not post comment to GitHub"
                             """
                         }
