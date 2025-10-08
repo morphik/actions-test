@@ -94,7 +94,8 @@ pipeline {
                         echo "No PR number found in latest commit"
                         echo "Skipping sync - this is not a PR merge"
                         currentBuild.result = 'SUCCESS'
-                        return
+                        env.SKIP_SYNC = 'true'
+                        error("SKIP: No PR number found - not a PR merge")
                     }
 
                     // Check for "no-sync" keyword in commit message
@@ -107,9 +108,10 @@ pipeline {
 
                     if (hasNoSync == 'true') {
                         echo "Found 'no-sync' keyword in commit message"
-                        echo "Skipping sync"
+                        echo "Skipping sync as requested"
                         currentBuild.result = 'SUCCESS'
-                        return
+                        env.SKIP_SYNC = 'true'
+                        error("SKIP: no-sync keyword found")
                     }
 
                     // Get the latest commit hash
@@ -121,6 +123,7 @@ pipeline {
                     env.PR_NUMBER = prNumber ?: '0'
                     env.COMMIT_TO_SYNC = commitToSync
                     env.COMMIT_MESSAGE = latestCommitMsg
+                    env.SKIP_SYNC = 'false'
 
                     echo "=== Sync Information ==="
                     echo "PR Number: ${env.PR_NUMBER}"
@@ -131,8 +134,16 @@ pipeline {
         }
 
         stage('Sync Branches') {
+            when {
+                expression { env.SKIP_SYNC != 'true' }
+            }
             steps {
                 script {
+                    // Double-check skip condition
+                    if (env.SKIP_SYNC == 'true') {
+                        return
+                    }
+
                     try {
                         sh '''
                             git config user.name "Jenkins Bot"
@@ -228,7 +239,7 @@ pipeline {
                             env.SYNC_ERROR = e.getMessage()
                         }
 
-                        echo "❌ Sync failed: ${env.SYNC_ERROR}"
+                        echo "Sync failed: ${env.SYNC_ERROR}"
 
                         // Make sure any ongoing cherry-pick is aborted
                         sh 'git cherry-pick --abort || true'
