@@ -82,7 +82,11 @@ pipeline {
 
         stage('Manual stage') {
             when {
-                expression { env.IS_PR_MERGE == 'false' && isManualBuild() }
+                allOf {
+                    expression { env.IS_PR_MERGE == 'false' }
+                    expression { isManualBuild() }
+                }
+
                 beforeAgent true
             }
             steps { echo 'Start ręczny → uruchamiam ten stage' }
