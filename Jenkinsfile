@@ -10,6 +10,15 @@ pipeline {
     }
 
     stages {
+
+        stage('Debug Stage') {
+            steps {
+                echo "CHANGE_ID: #${env.CHANGE_ID}"
+                echo "BRANCH_NAME ${env.BRANCH_NAME}"
+                echo "TARGET ${env.CHANGE_TARGET}"
+            }
+        }
+
         stage('Manual stage') {
             when {
                 not { changeRequest() }
