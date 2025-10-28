@@ -19,13 +19,6 @@ properties([
   ])
 ])
 
-@NonCPS
-def hasCause(String name) {
-  currentBuild.rawBuild.getCauses().any { c ->
-    c.class.simpleName == name || c.class.name.endsWith("." + name)
-  }
-}
-def isManualBuild()     { hasCause('UserIdCause') || hasCause('UserCause') }
 
 pipeline {
     agent any
@@ -84,7 +77,7 @@ pipeline {
             when {
                 allOf {
                     expression { env.IS_PR_MERGE == 'false' }
-                    expression { isManualBuild() }
+                    expression { buildingManual() }
                 }
 
                 beforeAgent true
