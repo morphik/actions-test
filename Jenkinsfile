@@ -40,19 +40,28 @@ pipeline {
               def parents = sh(script: "git cat-file -p HEAD | grep '^parent ' | wc -l", returnStdout: true).trim() as Integer
               def msg = sh(script: "git log -1 --pretty=%s", returnStdout: true).trim()
 
-              // Extract PR number using shell (same method that works in your main pipeline)
+              echo "=== DEBUG ==="
+
               def prNumber = sh(
-                script: """
-                  echo '${msg}' | grep -oiE '#[0-9]+' | head -1 | sed 's/#//' || echo ''
-                """,
+                script: "echo '${msg}' | grep -oiE '#[0-9]+' | head -1 | sed 's/#//' || echo ''",
                 returnStdout: true
               ).trim()
 
-              // PR merge is: merge commit (2+ parents) AND contains PR number
-              env.IS_PR_MERGE = (parents >= 2 && prNumber != '') ? 'true' : 'false'
-              env.PR_NUMBER = prNumber ?: '0'
+              echo "parents = '${parents}' (class: ${parents.class.name})"
+              echo "prNumber = '${prNumber}' (class: ${prNumber.class.name})"
+              echo "parents >= 2 = ${parents >= 2}"
+              echo "prNumber != '' = ${prNumber != ''}"
+              echo "prNumber.isEmpty() = ${prNumber.isEmpty()}"
 
-              echo "Heuristic IS_PR_MERGE=${env.IS_PR_MERGE} (parents=${parents}, msg='${msg}')"
+              // Use explicit if-else
+              env.PR_NUMBER = prNumber
+              if (parents >= 2 && !prNumber.isEmpty()) {
+                env.IS_PR_MERGE = 'true'
+              } else {
+                env.IS_PR_MERGE = 'false'
+              }
+
+              echo "IS_PR_MERGE=${env.IS_PR_MERGE}, PR_NUMBER=${env.PR_NUMBER}"
             }
           }
         }
