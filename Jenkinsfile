@@ -32,6 +32,17 @@ pipeline {
 
     stages {
 
+       stage('Detect PR merge (heuristic)') {
+          steps {
+            script {
+              def parents = sh(script: "git cat-file -p HEAD | grep '^parent ' | wc -l", returnStdout: true).trim() as Integer
+              def msg = sh(script: "git log -1 --pretty=%s", returnStdout: true).trim()
+              env.IS_PR_MERGE = (parents >= 2 && (msg ==~ /(?i)^merge pull request #\\d+.*/)) ? 'true' : 'false'
+              echo "Heuristic IS_PR_MERGE=${env.IS_PR_MERGE} (parents=${parents}, msg='${msg}')"
+            }
+          }
+        }
+
         stage('Debug Stage') {
             steps {
 
