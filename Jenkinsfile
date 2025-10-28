@@ -8,13 +8,14 @@ properties([
         [key: 'PR_NUMBER',    value: '$.pull_request.number'],
         [key: 'PR_MERGE_SHA', value: '$.pull_request.merge_commit_sha'],
       ],
+      causeString: 'Triggered by GitHub PR: $PR_NUMBER',
       // token musi zgadzać się z URLem webhooka
       token: '447e3c9d-b10b-4d56-a977-7b2a3c54975d',
       // Tylko zamknięty PR z merged=true
       regexpFilterText: '$PR_ACTION $PR_MERGED',
-      regexpFilterExpression: 'closed true',
+      regexpFilterExpression: '^closed true$',
       printContributedVariables: true,
-      printPostContent: false
+      printPostContent: true
     ]
   ])
 ])
