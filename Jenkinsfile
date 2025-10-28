@@ -77,7 +77,7 @@ pipeline {
             when {
                 allOf {
                     expression { env.IS_PR_MERGE == 'false' }
-                    expression { buildingManual() }
+                    triggeredBy 'UserIdCause'
                 }
 
                 beforeAgent true
