@@ -25,7 +25,7 @@ def hasCause(String name) {
     c.class.simpleName == name || c.class.name.endsWith("." + name)
   }
 }
-def isManualBuild()()     { hasCause('UserIdCause') || hasCause('UserCause') }
+def isManualBuild()     { hasCause('UserIdCause') || hasCause('UserCause') }
 
 pipeline {
     agent any
