@@ -34,6 +34,14 @@ pipeline {
 
         stage('Debug Stage') {
             steps {
+
+                echo "PR_ACTION: ${env.PR_ACTION}"
+                echo "PR_MERGED: ${env.PR_MERGED}"
+                echo "PR_TARGET: ${env.PR_TARGET}"
+                echo "PR_NUMBER: ${env.PR_NUMBER}"
+                echo "PR_MERGE_SHA: ${env.PR_MERGE_SHA}"
+
+
                 echo "CHANGE_ID: #${env.CHANGE_ID}"
                 echo "BRANCH_NAME ${env.BRANCH_NAME}"
                 echo "TARGET ${env.CHANGE_TARGET}"
