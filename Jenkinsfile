@@ -82,7 +82,7 @@ pipeline {
 
         stage('Manual stage') {
             when {
-                expression { env.IS_PR_MERGE == 'false' }
+                expression { env.IS_PR_MERGE == 'false' && isManualBuild() }
                 beforeAgent true
             }
             steps { echo 'Start ręczny → uruchamiam ten stage' }
@@ -90,7 +90,7 @@ pipeline {
 
         stage('Tylko PR') {
             when {
-                expression { env.IS_PR_MERGE == 'true' && isManualBuild() }
+                expression { env.IS_PR_MERGE == 'true' }
                 beforeAgent true
             }
             steps { echo 'Change Request → uruchamiam PR' }
