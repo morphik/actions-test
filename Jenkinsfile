@@ -19,6 +19,14 @@ properties([
   ])
 ])
 
+@NonCPS
+def hasCause(String name) {
+  currentBuild.rawBuild.getCauses().any { c ->
+    c.class.simpleName == name || c.class.name.endsWith("." + name)
+  }
+}
+def isManualBuild()()     { hasCause('UserIdCause') || hasCause('UserCause') }
+
 pipeline {
     agent any
 
@@ -38,7 +46,19 @@ pipeline {
             script {
               def parents = sh(script: "git cat-file -p HEAD | grep '^parent ' | wc -l", returnStdout: true).trim() as Integer
               def msg = sh(script: "git log -1 --pretty=%s", returnStdout: true).trim()
-              env.IS_PR_MERGE = (parents >= 2 && (msg ==~ /(?i)^merge pull request #\d+.*/)) ? 'true' : 'false'
+
+              // Extract PR number using shell (same method that works in your main pipeline)
+              def prNumber = sh(
+                script: """
+                  echo '${msg}' | grep -oiE '#[0-9]+' | head -1 | sed 's/#//' || echo ''
+                """,
+                returnStdout: true
+              ).trim()
+
+              // PR merge is: merge commit (2+ parents) AND contains PR number
+              env.IS_PR_MERGE = (parents >= 2 && prNumber != '') ? 'true' : 'false'
+              env.PR_NUMBER = prNumber ?: '0'
+
               echo "Heuristic IS_PR_MERGE=${env.IS_PR_MERGE} (parents=${parents}, msg='${msg}')"
             }
           }
@@ -70,7 +90,7 @@ pipeline {
 
         stage('Tylko PR') {
             when {
-                expression { env.IS_PR_MERGE == 'true' }
+                expression { env.IS_PR_MERGE == 'true' && isManualBuild() }
                 beforeAgent true
             }
             steps { echo 'Change Request → uruchamiam PR' }
