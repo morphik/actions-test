@@ -29,7 +29,6 @@ pipeline {
         ISSUES_URL = 'https://api.github.com/repos/morphik/actions-test/issues'
         GITHUB_CREDENTIALS = 'github-token'
         SKIP_SYNC = 'false'
-        IS_PR_MERGE = 'false'
     }
 
     stages {
