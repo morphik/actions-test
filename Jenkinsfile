@@ -28,6 +28,7 @@ pipeline {
         ISSUES_URL = 'https://api.github.com/repos/morphik/actions-test/issues'
         GITHUB_CREDENTIALS = 'github-token'
         SKIP_SYNC = 'false'
+        IS_PR_MERGE = 'false'
     }
 
     stages {
@@ -37,7 +38,7 @@ pipeline {
             script {
               def parents = sh(script: "git cat-file -p HEAD | grep '^parent ' | wc -l", returnStdout: true).trim() as Integer
               def msg = sh(script: "git log -1 --pretty=%s", returnStdout: true).trim()
-              env.IS_PR_MERGE = (parents >= 2 && (msg ==~ /(?i)^merge pull request #\\d+.*/)) ? 'true' : 'false'
+              env.IS_PR_MERGE = (parents >= 2 && (msg ==~ /(?i)^merge pull request #\d+.*/)) ? 'true' : 'false'
               echo "Heuristic IS_PR_MERGE=${env.IS_PR_MERGE} (parents=${parents}, msg='${msg}')"
             }
           }
@@ -61,7 +62,7 @@ pipeline {
 
         stage('Manual stage') {
             when {
-                not { changeRequest() }
+                expression { env.IS_PR_MERGE == 'false' }
                 beforeAgent true
             }
             steps { echo 'Start ręczny → uruchamiam ten stage' }
@@ -69,7 +70,7 @@ pipeline {
 
         stage('Tylko PR') {
             when {
-                changeRequest()
+                expression { env.IS_PR_MERGE == 'true' }
                 beforeAgent true
             }
             steps { echo 'Change Request → uruchamiam PR' }
