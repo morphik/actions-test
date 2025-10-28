@@ -66,6 +66,7 @@ pipeline {
                 echo "PR_NUMBER: ${env.PR_NUMBER}"
                 echo "PR_MERGE_SHA: ${env.PR_MERGE_SHA}"
 
+                echo "IS_PR_MERGE: ${env.IS_PR_MERGE }"
 
                 echo "CHANGE_ID: #${env.CHANGE_ID}"
                 echo "BRANCH_NAME ${env.BRANCH_NAME}"
